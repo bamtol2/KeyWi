@@ -24,6 +24,8 @@
 
 > 🔗 [노션 링크](https://shiny-headlight-8fc.notion.site/KeyWi-1a4c09e299c68064827cde3460b97652?pvs=4)
 
+> 🎥 [소개 영상](https://www.youtube.com/watch?v=3X038HmPVuc) 
+
 #### ❌ - 웹 / ⭕ - 모바일로 접속 후 홈 화면 바로가기
 
 > 📲 [배포 URL](https://keywi.poloceleste.site)
