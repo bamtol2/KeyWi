@@ -2,7 +2,7 @@ spring:
   application:
     name: eureka
   config:
-    import: configserver:https://j12e202.p.ssafy.io/config
+    import: configserver:http://localhost:8888
   cloud:
     bus:
       enabled: true

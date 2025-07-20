@@ -4,7 +4,7 @@ spring:
 
   # Config Server 설정
   config:
-    import: configserver:https://j12e202.p.ssafy.io/config
+    import: configserver:http://localhost:8888
 
   # Spring Cloud Bus 설정
   cloud:
