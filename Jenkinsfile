@@ -349,7 +349,7 @@ pipeline {
                             sshagent(['keywi-server']) {
                                 def RELEASE_DIR = "/var/www/keywi_releases/${new Date().format('yyyyMMddHHmmss')}"
                                 withEnv(["RELEASE_DIR=${RELEASE_DIR}"]) {
-                                    sh """
+                                    sh """#!/bin/bash -l
                                         set -euo pipefail
                                         rsync -av --progress -e 'ssh -o StrictHostKeyChecking=no' -W dist.tar.gz ${SERVER_USER}@${PROD_SERVER}:/tmp/
                                         
@@ -399,10 +399,15 @@ pipeline {
                 }
             }
         }
-        stage('Push to Docker Hub') {//('Deploy to Test') {
+        stage('Push to Docker Hub') {
+            when {
+                expression {
+                    return (COMMIT_MSG.toLowerCase().contains('[be]') || (COMMIT_MSG.toLowerCase().contains('merge') && COMMIT_MSG.toLowerCase().contains('feature/be')))
+                }
+            }
             steps {
                 script {
-                    STAGE_NAME = "Push to Docker Hub (5/6)"//"Deploy to Test (5/9)"
+                    STAGE_NAME = "Push to Docker Hub (5/6)"
                     def servicesList = SERVICES.split(',')
                     servicesList.each { SERVICE ->
                         echo "Pushing ${SERVICE} to Docker Hub..."
@@ -485,10 +490,15 @@ pipeline {
                 }
             }
         } 
-        stage('Complete') {
+        stage('BE Deploy Completed') {
+            when {
+                expression {
+                    return (COMMIT_MSG.toLowerCase().contains('[be]') || (COMMIT_MSG.toLowerCase().contains('merge') && COMMIT_MSG.toLowerCase().contains('feature/be')))
+                }
+            }
             steps {
                 script {
-                    STAGE_NAME = "Completed"
+                    STAGE_NAME = "BE Deploy Completed"
                 }
             }
         }
