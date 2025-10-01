@@ -131,7 +131,7 @@ pipeline {
                     } else {
                         echo "Repository does not exist. Cloning..."
                         try {
-                            withCredentials([gitUsernamePassword(credentialsId: 'github-credentials')]) {
+                            withCredentials([gitUsernamePassword(credentialsId: 'github_credentials')]) {
                                 sh "git clone ${GITHUB_BASE_URL}.git ."
 
                                 sh "git checkout ${BRANCH_NAME}"
