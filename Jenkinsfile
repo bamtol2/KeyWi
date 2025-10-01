@@ -28,6 +28,7 @@ pipeline {
         ERROR_MSG = "false"
         
         // 서버 정보
+        SERVER_USER = 'keywi'
         PROD_SERVER = 'keywi.poloceleste.site'
         GITHUB_BASE_URL = 'https://github.com/team2room/KeyWi'
         DISCORD_WEBHOOK_URL = credentials('discord_webhooks')
