@@ -112,7 +112,7 @@ pipeline {
                                 
                                 // 서비스 목록 설정
                                 if (BRANCH_NAME == "master") {
-                                    env.SERVICES = "config,eureka,gateway,auth,product,feed,mypage,board,chat,search"
+                                    SERVICES = "config,eureka,gateway,auth,product,feed,mypage,board,chat,search"
                                 } else if (BRANCH_NAME == "feature/BE/gateway") {
                                     SERVICES = "eureka,gateway"
                                 } else {
@@ -144,7 +144,7 @@ pipeline {
                                 
                                 // 서비스 목록 설정
                                 if (BRANCH_NAME == "master") {
-                                    env.SERVICES = "config,eureka,gateway,auth,product,feed,mypage,board,chat,search"
+                                    SERVICES = "config,eureka,gateway,auth,product,feed,mypage,board,chat,search"
                                 } else if (BRANCH_NAME == "feature/BE/gateway") {
                                     SERVICES = "eureka,gateway"
                                 } else {
