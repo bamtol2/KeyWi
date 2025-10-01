@@ -7,6 +7,7 @@ pipeline {
         maven 'Default Maven'
         jdk 'Zulu17'
         git 'Default Git'
+        nodejs 'defaultNodeJS'
     }
     environment {
         STAGE_NAME = ''
@@ -27,36 +28,78 @@ pipeline {
         ERROR_MSG = "false"
         
         // 서버 정보
-        // TEST_SERVER = 'ssafy-gcloudtest.kro.kr'
-        PROD_SERVER = 'j12e202.p.ssafy.io'
-        JIRA_BASE_URL = 'https://ssafy.atlassian.net'
-        GITLAB_BASE_URL = 'https://lab.ssafy.com/s12-fintech-finance-sub1/S12P21E202'
+        PROD_SERVER = 'keywi.poloceleste.site'
+        GITHUB_BASE_URL = 'https://github.com/team2room/KeyWi'
+        DISCORD_WEBHOOK_URL = credentials('discord_webhooks')
+        SERVER_WORK_DIR = 'FE/keywi'
     }
     stages {
         stage('Checkout and Update') {
             steps {
                 script {
-                    echo "Branch: ${env.GIT_BRANCH}"
-                    echo "Commit: ${env.GIT_COMMIT}"
-                    BRANCH_NAME = env.GIT_BRANCH.replaceFirst("refs/heads/", "")
-                    STAGE_NAME = "Checkout and Update (1/6)"
+                    // 변수 안전 확인
+                    def refVar = ""
+                    def repositoryVar = ""
+                    def pusherVar = ""
+                    def commitMessageVar = ""
+                    
+                    try {
+                        refVar = ref ?: ""
+                    } catch(Exception e) {
+                        echo "ref 변수 없음: ${e.message}"
+                        refVar = ""
+                    }
+                    
+                    try {
+                        repositoryVar = repository ?: ""
+                    } catch(Exception e) {
+                        echo "repository 변수 없음: ${e.message}"
+                        repositoryVar = ""
+                    }
+                    
+                    try {
+                        pusherVar = pusher ?: ""
+                    } catch(Exception e) {
+                        echo "pusher 변수 없음: ${e.message}"
+                        pusherVar = ""
+                    }
+                    
+                    try {
+                        commitMessageVar = commit_message ?: ""
+                    } catch(Exception e) {
+                        echo "commit_message 변수 없음: ${e.message}"
+                        commitMessageVar = ""
+                    }
+                    
+                    echo "- ref: ${refVar}"
+                    echo "- repository: ${repositoryVar}"
+                    echo "- pusher: ${pusherVar}"
+                    echo "- commit_message: ${commitMessageVar}"
+                    
+                    // Generic Webhook Trigger에서 설정된 변수들 사용
+                    def branchName = (refVar ?: "refs/heads/master").replaceFirst("refs/heads/", "")
+                    BRANCH_NAME = branchName
+                    echo "- resolved branch: ${BRANCH_NAME}"
+
+                    def stageName = "Checkout and Update (1/6)"
+                    STAGE_NAME = stageName
                     def repoExists = fileExists('.git')
                     if (repoExists) {
                         echo "Repository exists. Updating..."
                         try {
                             checkout([
                                 $class: 'GitSCM',
-                                branches: [[name: '*/${BRANCH_NAME}']],
+                                branches: [[name: "*/${BRANCH_NAME}"]],
                                 userRemoteConfigs: [[
-                                    url: "${GITLAB_BASE_URL}.git",
-                                    credentialsId: 'gitlab-credentials'
+                                    url: "${GITHUB_BASE_URL}.git",
+                                    credentialsId: 'github_credentials'
                                 ]],
                                 extensions: [
                                     [$class: 'CleanBeforeCheckout'],
                                     [$class: 'PruneStaleBranch']
                                 ]
                             ])
-                            withCredentials([gitUsernamePassword(credentialsId: 'gitlab-credentials')]) {
+                            withCredentials([gitUsernamePassword(credentialsId: 'github_credentials')]) {
                                 sh "git fetch --all --prune"
                                 sh "git checkout -B ${BRANCH_NAME} origin/${BRANCH_NAME} --force"
                                 sh "git pull origin ${BRANCH_NAME}"
@@ -69,13 +112,11 @@ pipeline {
                                 
                                 // 서비스 목록 설정
                                 if (BRANCH_NAME == "master") {
-                                    env.SERVICES = "config,eureka,gateway,auth,product,feed,mypage,pay,financial,board,chat,search"
+                                    env.SERVICES = "config,eureka,gateway,auth,product,feed,mypage,board,chat,search"
                                 } else if (BRANCH_NAME == "feature/BE/gateway") {
                                     SERVICES = "eureka,gateway"
-                                } else if (BRANCH_NAME == "feature/BE/pay") {
-                                    SERVICES = "financial"
                                 } else {
-                                    SERVICES = "${SERVICE_PATH}"
+                                    SERVICES = SERVICE_PATH ? "${SERVICE_PATH}" : "FE only - No BE services to build"
                                 }
                             
                                 echo "branch: ${BRANCH_NAME}"
@@ -90,8 +131,8 @@ pipeline {
                     } else {
                         echo "Repository does not exist. Cloning..."
                         try {
-                            withCredentials([gitUsernamePassword(credentialsId: 'gitlab-credentials')]) {
-                                sh "git clone ${GITLAB_BASE_URL}.git ."
+                            withCredentials([gitUsernamePassword(credentialsId: 'github-credentials')]) {
+                                sh "git clone ${GITHUB_BASE_URL}.git ."
 
                                 sh "git checkout ${BRANCH_NAME}"
 
@@ -99,17 +140,15 @@ pipeline {
                                 DOCKER_TAG = "${env.BUILD_NUMBER}-${GIT_COMMIT_SHORT}"
                                 
                                 // MSA 서비스 경로 설정
-                                SERVICE_PATH = BRANCH_NAME.replace("feature/BE/", "")
+                                SERVICE_PATH = BRANCH_NAME.contains('feature/BE/') ? BRANCH_NAME.replace("feature/BE/", "") : ""
                                 
                                 // 서비스 목록 설정
                                 if (BRANCH_NAME == "master") {
-                                    env.SERVICES = "config,eureka,gateway,auth,product,feed,mypage,pay,financial,board,chat,search"
+                                    env.SERVICES = "config,eureka,gateway,auth,product,feed,mypage,board,chat,search"
                                 } else if (BRANCH_NAME == "feature/BE/gateway") {
                                     SERVICES = "eureka,gateway"
-                                } else if (BRANCH_NAME == "feature/BE/pay") {
-                                    SERVICES = "financial"
                                 } else {
-                                    SERVICES = "${SERVICE_PATH}"
+                                    SERVICES = SERVICE_PATH ? "${SERVICE_PATH}" : "FE only - No BE services to build"
                                 }
                                 
                                 echo "branch: ${BRANCH_NAME}"
@@ -123,41 +162,22 @@ pipeline {
                         }
                     }
                     AUTHOR = sh(script: "git log -1 --pretty=format:%an", returnStdout: true).trim()
-                    COMMIT_MSG = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+                    COMMIT_MSG = sh(script: 'git log -1 --pretty=%B | tr "\\n" " "', returnStdout: true).trim()
                     COMMIT_HASH = sh(script: "git log -1 --pretty=format:%H", returnStdout: true).trim()
-                }
-                script {
-                    if (sh(
-                        script: "git ls-tree -d origin/${BRANCH_NAME} BE", 
-                        returnStatus: true
-                    ) != 0) {
-                        currentBuild.result = 'ABORTED'
-                        ERROR_MSG = "BE 디렉토리가 원격 브랜치에 존재하지 않음"
-                        error ERROR_MSG
-                    }
-                    
-                    if (!fileExists("BE")) {
-                        ERROR_MSG = "BE 디렉토리가 로컬에 존재하지 않음"
-                        error ERROR_MSG
-                    }
-                    
-                    if (COMMIT_MSG.toLowerCase().contains('[fe]')) {
-                        ERROR_MSG = "FE 커밋으로 빌드 중단"
-                        error ERROR_MSG
-                    }
-                    
-                    if (COMMIT_MSG.toLowerCase().contains('merge') && COMMIT_MSG.toLowerCase().contains('feature/fe')) {
-                        ERROR_MSG = "FE 커밋으로 빌드 중단"
-                        error ERROR_MSG
-                    }
                 }
             }
         }
-        stage('Inject Config') {
+        // BE 세팅
+        stage('BE Inject Config') {
+            when {
+                expression {
+                    return (COMMIT_MSG.toLowerCase().contains('[be]') || (COMMIT_MSG.toLowerCase().contains('merge') && COMMIT_MSG.toLowerCase().contains('feature/be')))
+                }
+            }
             steps {
                 script {
                     def servicesList = SERVICES.split(',')
-                    STAGE_NAME = "Inject Config (2/6)"
+                    STAGE_NAME = "BE Inject Config (2/6)"
                     
                     servicesList.each { SERVICE ->
                         echo "Config Searching..."
@@ -165,7 +185,7 @@ pipeline {
                         if (SERVICE == "config") {
                             echo "Injecting config for ${SERVICE}..."
                             withCredentials([
-                                file(credentialsId: 'config_yml', variable: 'CONFIG_FILE')
+                                file(credentialsId: 'keywi_config_yml', variable: 'CONFIG_FILE')
                             ]) {
                                 sh """
                                     mkdir -p BE/${SERVICE}/src/main/resources
@@ -177,10 +197,36 @@ pipeline {
                 }
             }
         }
-        stage('Build') {
+        // fe 세팅
+        stage('FE Inject Config') {
+            when {
+                expression {
+                    return (COMMIT_MSG.toLowerCase().contains('[fe]') || (COMMIT_MSG.toLowerCase().contains('merge') && COMMIT_MSG.toLowerCase().contains('feature/fe')))
+                }
+            }
             steps {
                 script {
-                    STAGE_NAME = "Build (3/6)"
+                    STAGE_NAME = "FE Inject Config (2/5)"
+                }
+                withCredentials([
+                    file(credentialsId: 'keywi_react_env', variable: 'CONFIG_FILE')
+                ]) {
+                    sh """
+                        rm ${SERVER_WORK_DIR}/.env || true
+                        cp \$CONFIG_FILE ${SERVER_WORK_DIR}/.env
+                    """
+                }
+            }
+        }
+        stage('BE Build') {
+            when {
+                expression {
+                    return (COMMIT_MSG.toLowerCase().contains('[be]') || (COMMIT_MSG.toLowerCase().contains('merge') && COMMIT_MSG.toLowerCase().contains('feature/be')))
+                }
+            }
+            steps {
+                script {
+                    STAGE_NAME = "BE Build (3/6)"
                     def servicesList = SERVICES.split(',')
                     servicesList.each { SERVICE ->
                         echo "Building ${SERVICE}..."
@@ -200,13 +246,57 @@ pipeline {
                 failure {
                     cleanWs()
                     script {
-                        ERROR_MSG += "\nBuild failed"
+                        ERROR_MSG += "\nBE Build failed"
+                        error ERROR_MSG
+                    }
+                }
+            }
+        }
+        // FE 빌드
+        stage('FE build') {
+            when {
+                expression {
+                    return (COMMIT_MSG.toLowerCase().contains('[fe]') || (COMMIT_MSG.toLowerCase().contains('merge') && COMMIT_MSG.toLowerCase().contains('feature/fe')))
+                }
+            }
+            steps {
+                script {
+                    STAGE_NAME = "FE Build (3/5)"
+                }
+                dir(SERVER_WORK_DIR) {
+                    script{
+                        try {
+                            sh """#!/bin/bash -l
+                                set -euo pipefail
+                                node -v
+                                npm -v
+                                npm ci || npm install
+                                npm run build
+                                tar -czvf dist.tar.gz dist/
+                            """
+                        } catch(Exception e) {
+                            ERROR_MSG = e.getMessage()
+                            error ERROR_MSG
+                        }
+                    }
+                }
+            }
+            post {
+                failure {
+                    cleanWs()
+                    script {
+                        ERROR_MSG += "\nFE Build failed"
                         error ERROR_MSG
                     }
                 }
             }
         }
         stage('Docker Build') {
+            when {
+                expression {
+                    return (COMMIT_MSG.toLowerCase().contains('[be]') || (COMMIT_MSG.toLowerCase().contains('merge') && COMMIT_MSG.toLowerCase().contains('feature/be')))
+                }
+            }
             steps {
                 script {
                     STAGE_NAME = "Docker Build (4/6)"
@@ -240,6 +330,74 @@ pipeline {
                 }
             }
         }
+        // FE 배포
+        stage('FE Deploy') {
+            when {
+                expression {
+                    return (COMMIT_MSG.toLowerCase().contains('[fe]') || (COMMIT_MSG.toLowerCase().contains('merge') && COMMIT_MSG.toLowerCase().contains('feature/fe')))
+                }
+            }
+            steps {
+                script {
+                    STAGE_NAME = "FE Deploy (4/5)"
+                }
+                dir(SERVER_WORK_DIR) {
+                    script {
+                        try {
+                            echo "FE deploy"
+                            sshagent(['keywi-server']) {
+                                def RELEASE_DIR = "/var/www/keywi_releases/${new Date().format('yyyyMMddHHmmss')}"
+                                withEnv(["RELEASE_DIR=${RELEASE_DIR}"]) {
+                                    sh """
+                                        set -euo pipefail
+                                        rsync -av --progress -e 'ssh -o StrictHostKeyChecking=no' -W dist.tar.gz ${SERVER_USER}@${PROD_SERVER}:/tmp/
+                                        
+                                        sleep 1
+                                        
+                                        local_size=\$(stat -c%s dist.tar.gz)
+                                        remote_size=\$(ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${PROD_SERVER} "stat -c%s /tmp/dist.tar.gz")
+                                        
+                                        if [ "\$local_size" -ne "\$remote_size" ]; then
+                                            echo "ERROR: File size mismatch (Local: \$local_size, Remote: \$remote_size)"
+                                            exit 1
+                                        fi
+                                        
+                                        sleep 1
+                                        
+                                        
+                                        ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${PROD_SERVER} '
+                                            set -euo pipefail
+                                            sudo mkdir -p "$RELEASE_DIR"
+                                            cd /tmp
+                                            tar -xzf dist.tar.gz
+                                            sudo rsync -a --delete dist/ "$RELEASE_DIR"/
+                                            sudo ln -sfn "$RELEASE_DIR" /var/www/keywi
+                                            sudo chown -R www-data:www-data /var/www/keywi "$RELEASE_DIR"
+                                            rm -rf dist dist.tar.gz
+                                            sudo systemctl reload nginx
+                                        '
+                                        
+                                        rm -rf dist dist.tar.gz
+                                    """
+                                }
+                            }
+                        } catch(Exception e) {
+                            ERROR_MSG = e.getMessage()
+                            error ERROR_MSG
+                        }
+                    }
+                }
+            }
+            post {
+                failure {
+                    cleanWs()
+                    script {
+                        ERROR_MSG += "\nFE Deploy failed"
+                        error ERROR_MSG
+                    }
+                }
+            }
+        }
         stage('Push to Docker Hub') {//('Deploy to Test') {
             steps {
                 script {
@@ -248,7 +406,7 @@ pipeline {
                     servicesList.each { SERVICE ->
                         echo "Pushing ${SERVICE} to Docker Hub..."
                         
-                        docker.withRegistry('https://index.docker.io/v1/', 'keywi-docker') {
+                        docker.withRegistry('https://index.docker.io/v1/', 'docker_credentials') {
                                 docker.image("${DOCKER_USER}/${IMAGE_NAME}-${SERVICE}:${DOCKER_TAG}").push()
                         }
                         echo "Push ${SERVICE} Docker Image."
@@ -265,7 +423,26 @@ pipeline {
                 }
             }
         }
-        stage('Deploy to Prod') {
+        // fe 배포 완료
+        stage('FE Deploy Complete') {
+            when {
+                expression {
+                    return (COMMIT_MSG.toLowerCase().contains('[fe]') || (COMMIT_MSG.toLowerCase().contains('merge') && COMMIT_MSG.toLowerCase().contains('feature/fe')))
+                }
+            }
+            steps {
+                script {
+                    STAGE_NAME = "FE Deploy Complete (5/5)"
+                }
+            }
+        }
+        // BE 배포 하기
+        stage('BE Deploy to Prod') {
+            when {
+                expression {
+                    return (COMMIT_MSG.toLowerCase().contains('[be]') || (COMMIT_MSG.toLowerCase().contains('merge') && COMMIT_MSG.toLowerCase().contains('feature/be')))
+                }
+            }
             steps {
                 script {
                     STAGE_NAME = "Deploy to Prod (6/6)"
@@ -274,19 +451,19 @@ pipeline {
                         echo "Deploying ${SERVICE} to production server..."
                         def memoryl=""
                         if (SERVICE == 'search'){
-                            memoryl = " --memory=1.3g --memory-swap=1.3g"
-                        } else if (SERVICE == 'config'){
-                            memoryl = " --memory=512m --memory-swap=512m"
-                        } else if (SERVICE == 'chat'){
                             memoryl = " --memory=2g --memory-swap=2g"
-                        } else if (SERVICE == 'auth' || SERVICE == 'feed'){
-                            memoryl = " --memory=1g --memory-swap=1g"
+                        } else if (SERVICE == 'config'){
+                            memoryl = " --memory=768m --memory-swap=768m"
+                        } else if (SERVICE == 'chat' || SERVICE == 'feed'){
+                            memoryl = " --memory=2.5g --memory-swap=2.5g"
+                        } else if (SERVICE == 'auth'){
+                            memoryl = " --memory=1.5g --memory-swap=1.5g"
                         } else {
-                            memoryl = " --memory=768m --memory-swap=1g"
+                            memoryl = " --memory=1g --memory-swap=1g"
                         }
-                        sshagent(['ec2-ssafy']) {
+                        sshagent(['keywi-server']) {
                             sh """
-                                ssh -o StrictHostKeyChecking=no ubuntu@${PROD_SERVER} "
+                                ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${PROD_SERVER} "
                                     docker pull ${DOCKER_USER}/${IMAGE_NAME}-${SERVICE}:${DOCKER_TAG}
                                     docker stop ${SERVICE} || true
                                     docker rm ${SERVICE} || true
@@ -306,39 +483,7 @@ pipeline {
                     }
                 }
             }
-        }
-        // stage('Prod Health Check') {
-        //     steps {
-        //         script {
-        //             STAGE_NAME = "Prod Health Check (8/9)"
-        //             def maxRetries = 5
-        //             def timeout = 10
-                    
-        //             SERVICES.each { SERVICE ->
-        //                 def success = false
-        //                 def port = SERVICE == "gateway" ? "8080" : (SERVICE == "eureka" ? "8761" : "8080")
-                        
-        //                 for (int i = 0; i < maxRetries; i++) {
-        //                     sleep(timeout)
-        //                     try {
-        //                         def response = httpRequest "https://${PROD_SERVER}:${port}/actuator/health"
-        //                         if (response.status == 200) {
-        //                             success = true
-        //                             break
-        //                         }
-        //                     } catch(e) {
-        //                         echo "Health check attempt ${i+1} failed for ${SERVICE}"
-        //                     }
-        //                 }
-                        
-        //                 if (!success) {
-        //                     ERROR_MSG = "Health check failed for ${SERVICE} after ${maxRetries} attempts"
-        //                     error ERROR_MSG
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
+        } 
         stage('Complete') {
             steps {
                 script {
@@ -350,39 +495,83 @@ pipeline {
     post {
         always {
             script {
-                def issueKeyPattern = /\[#(S12P21E202-\d+)]/
-                def issueKey = (COMMIT_MSG =~ /S12P21E202-\d+/) ? (COMMIT_MSG =~ /S12P21E202-\d+/)[0] : null
-                def cleanedMessage = issueKey ? COMMIT_MSG.replaceFirst(issueKeyPattern, '').trim() : COMMIT_MSG
-                def jiraLink = issueKey ? "${JIRA_BASE_URL}/jira/software/c/projects/S12P21E202/boards/7980?selectedIssue=${issueKey}" : ''
+                def emoji = currentBuild.currentResult == 'SUCCESS' ? '✅' : 
+                        (currentBuild.currentResult == 'ABORTED' ? '⚠️' : '❌')
                 
-                def message = "${env.JOB_NAME} - #${env.BUILD_NUMBER}\n" + "- 결과: " +
-                              (cleanedMessage.toLowerCase().contains('[fe]') ? "STOP\n" : "${currentBuild.currentResult}\n") +
-                              "- 브랜치: ${BRANCH_NAME}\n- 서비스: ${SERVICES}\n- 커밋: " +
-                              (issueKey ? "[${issueKey}] " : "") +
-                              "[${cleanedMessage}](${GITLAB_BASE_URL}/-/commit/${COMMIT_HASH}) (${GIT_COMMIT_SHORT}) [${AUTHOR}]\n" +
-                              "- 실행 시간: ${currentBuild.durationString}\n" +
-                              "- 최종 실행된 스테이지 : ${STAGE_NAME}\n" +
-                              ((ERROR_MSG!="false") ? "- ERROR :\n`${ERROR_MSG}`\n" : "")
+                def color = currentBuild.currentResult == 'SUCCESS' ? 0x00ff00 : 
+                        (currentBuild.currentResult == 'ABORTED' ? 0xffff00 : 0xff0000)
                 
-                if (issueKey) {
-                    try {
-                        def requestBody = [body: message]
-                        def response = httpRequest authentication: 'jira-credentials',
-                            contentType: 'APPLICATION_JSON',
-                            httpMode: 'POST',
-                            requestBody: groovy.json.JsonOutput.toJson(requestBody),
-                            url: "${JIRA_BASE_URL}/rest/api/2/issue/${issueKey}/comment"
-                        echo "JIRA comment added successfully. Status: ${response.status}"
-                    } catch(e) {
-                        echo "JIRA 코멘트 추가 실패: ${e.message}"
-                    }
+                def commitHash = ""
+                def commitMsg = ""
+                def author = ""
+                def branchName = BRANCH_NAME ?: "Unknown"
+                def stageName = STAGE_NAME ?: "Unknown"
+                def gitCommitShort = ""
+                
+                // 기본값 설정
+                try {
+                    commitHash = COMMIT_HASH ?: ""
+                } catch(Exception e) {
+                    commitHash = ""
                 }
-                message += (currentBuild.currentResult == 'ABORTED' ? "- **사용자 취소**\n" : "")
-                message += "- 상세: " + (currentBuild.currentResult == 'SUCCESS' ? ":jenkins7:" : (currentBuild.currentResult == 'ABORTED' ? ":jenkins_cute_flip:" : (cleanedMessage.toLowerCase().contains('[fe]') ? ":jenkins1:" : ":jenkins5:"))) + " [Jenkins](${env.BUILD_URL})"
-                message += jiraLink ? " | :jira: [Jira](${jiraLink}) " : (cleanedMessage.contains('Merge') ? " | :jira6: [Jira](${JIRA_BASE_URL}/jira/software/c/projects/S12P21E202/boards/7980)" : " | :jira3:")
-                message += "\n\n`${env.BUILD_TIMESTAMP}`"
                 
-                mattermostSend color: currentBuild.currentResult == 'SUCCESS' ? 'good' : (cleanedMessage.toLowerCase().contains('[fe]') ? 'good' : (currentBuild.currentResult == 'ABORTED' ? 'warning' : 'danger')), message: message
+                try {
+                    commitMsg = COMMIT_MSG ?: "Manual Build"
+                } catch(Exception e) {
+                    commitMsg = "Manual Build"
+                }
+                
+                try {
+                    author = AUTHOR ?: "Unknown"
+                } catch(Exception e) {
+                    author = "Unknown"
+                }
+                
+                try {
+                    gitCommitShort = GIT_COMMIT_SHORT ?: ""
+                } catch(Exception e) {
+                    gitCommitShort = ""
+                }
+                def services = SERVICES ?: ""
+                
+                def commitUrl = "${GITHUB_BASE_URL}/commit/${commitHash}"
+                def buildUrl = "${env.BUILD_URL}"
+                
+                def discordMessage = [
+                    embeds: [[
+                        title: "${emoji} ${env.JOB_NAME} - #${env.BUILD_NUMBER}",
+                        description: "**결과:** ${currentBuild.currentResult}\n" +
+                                "**브랜치:** `${branchName}`\n" +
+                                (services ? "**서비스:** ${services}\n" : "") +
+                                "**커밋:** [${commitMsg}](${commitUrl}) (${gitCommitShort})\n" +
+                                "**작성자:** ${author}\n" +
+                                "**실행 시간:** ${currentBuild.durationString}\n" +
+                                "**최종 스테이지:** ${stageName}" +
+                                ((ERROR_MSG != "false") ? "\n**에러:**\n`${ERROR_MSG}`\n" : "") +
+                                (currentBuild.currentResult == 'ABORTED' ? "**사용자 취소**\n" : ""),
+                        color: color,
+                        timestamp: new Date().format("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"),
+                        footer: [
+                            text: "KeyWi CI/CD",
+                            icon_url: "https://www.jenkins.io/images/logos/jenkins/jenkins.png"
+                        ],
+                        fields: [
+                            [
+                                name: "링크",
+                                value: "[Jenkins 빌드](${buildUrl})" + (commitHash ? " | [GitHub 커밋](${commitUrl})" : ""),
+                                inline: false
+                            ]
+                        ]
+                    ]]
+                ]
+                
+                httpRequest(
+                    httpMode: 'POST',
+                    contentType: 'APPLICATION_JSON',
+                    requestBody: JsonOutput.toJson(discordMessage),
+                    url: DISCORD_WEBHOOK_URL
+                )
+                echo "Discord 알림 전송 완료"
             }
             script {
                 cleanWs(cleanWhenNotBuilt: false,
