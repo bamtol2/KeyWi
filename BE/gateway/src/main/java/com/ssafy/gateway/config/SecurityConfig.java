@@ -49,6 +49,8 @@ public class SecurityConfig {
                         //채팅
                         .pathMatchers("/api/chat/**").permitAll()
                         .pathMatchers("/api/transactions/**").permitAll()
+                        .pathMatchers("/chat/**").permitAll()
+                        .pathMatchers("/app/**").permitAll()
                         //검색
                         .pathMatchers("/api/search/**").permitAll()
                         .pathMatchers("/api/board/**").permitAll()

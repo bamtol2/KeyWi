@@ -18,7 +18,10 @@ public class SecurityConfig {
                 .cors(cors -> cors.disable())  // 게이트웨이에서 처리하므로 기본 활성화
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/product/**").permitAll()  // 모든 상품 API 요청 허용
-                        .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/actuator/refresh").permitAll()
+                        .requestMatchers("/actuator/info").permitAll()
+                        .requestMatchers("/actuator/bus-refresh").permitAll()
                         .anyRequest().authenticated()
                 );
 
