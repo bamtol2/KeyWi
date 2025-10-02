@@ -42,21 +42,23 @@ public class ElasticsearchIndexInitializer {
                 .exists(ExistsRequest.of(e -> e.index(indexName)))
                 .value();
 
-        if (!exists) {
-            // elasticsearch-settings.json 파일 읽기
-            String settings = loadElasticsearchSettings();
-            
-            CreateIndexRequest request = CreateIndexRequest.of(c -> c
-                    .index(indexName)
-                    .settings(s -> s.withJson(new java.io.StringReader(settings)))
-                    .mappings(m -> m.properties(mappings))
-            );
-
-            elasticsearchClient.indices().create(request);
-            log.info("인덱스 '{}' 생성 완료", indexName);
-        } else {
-            log.info("인덱스 '{}'는 이미 존재합니다", indexName);
+        if (exists) {
+            // 인덱스가 존재하면 삭제하고 다시 생성 (개발환경에서만)
+            log.info("기존 인덱스 '{}' 삭제 중...", indexName);
+            elasticsearchClient.indices().delete(d -> d.index(indexName));
         }
+        
+        // elasticsearch-settings.json 파일 읽기
+        String settings = loadElasticsearchSettings();
+        
+        CreateIndexRequest request = CreateIndexRequest.of(c -> c
+                .index(indexName)
+                .settings(s -> s.withJson(new java.io.StringReader(settings)))
+                .mappings(m -> m.properties(mappings))
+        );
+
+        elasticsearchClient.indices().create(request);
+        log.info("인덱스 '{}' 생성 완료", indexName);
     }
 
     private String loadElasticsearchSettings() {
