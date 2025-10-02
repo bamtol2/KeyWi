@@ -349,12 +349,13 @@ pipeline {
                             sshagent(['keywi-server']) {
                                 def RELEASE_DIR = "/var/www/keywi_releases/${new Date().format('yyyyMMddHHmmss')}"
                                 withEnv(["RELEASE_DIR=${RELEASE_DIR}"]) {
-                                    sh """#!/bin/bash -l
+                                    sh '''#!/bin/bash -l
                                         set -euo pipefail
+                                        
+                                        echo "[FE Deploy] 1/4 rsync dist.tar.gz"
                                         rsync -av --progress -e 'ssh -o StrictHostKeyChecking=no' -W dist.tar.gz ${SERVER_USER}@${PROD_SERVER}:/tmp/
                                         
-                                        sleep 1
-                                        
+                                        echo "[FE Deploy] 2/4 verify size"
                                         local_size=\$(stat -c%s dist.tar.gz)
                                         remote_size=\$(ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${PROD_SERVER} "stat -c%s /tmp/dist.tar.gz")
                                         
@@ -363,23 +364,23 @@ pipeline {
                                             exit 1
                                         fi
                                         
-                                        sleep 1
-                                        
-                                        
-                                        ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${PROD_SERVER} '
+                                        echo "[FE Deploy] 3/4 remote release to $RELEASE_DIR"
+                                        ssh -o StrictHostKeyChecking=no "${SERVER_USER}@${PROD_SERVER}" "bash -lc '
                                             set -euo pipefail
-                                            sudo mkdir -p "$RELEASE_DIR"
+                                            RELEASE_DIR=\"${RELEASE_DIR}\"
+                                            sudo mkdir -p \"$RELEASE_DIR\"
                                             cd /tmp
                                             tar -xzf dist.tar.gz
-                                            sudo rsync -a --delete dist/ "$RELEASE_DIR"/
-                                            sudo ln -sfn "$RELEASE_DIR" /var/www/keywi
-                                            sudo chown -R www-data:www-data /var/www/keywi "$RELEASE_DIR"
+                                            sudo rsync -a --delete dist/ \"$RELEASE_DIR\"/
+                                            sudo ln -sfn \"$RELEASE_DIR\" /var/www/keywi
+                                            sudo chown -R www-data:www-data /var/www/keywi \"$RELEASE_DIR\"
                                             rm -rf dist dist.tar.gz
                                             sudo systemctl reload nginx
-                                        '
+                                        '"
                                         
+                                        echo "[FE Deploy] 4/4 cleanup local"
                                         rm -rf dist dist.tar.gz
-                                    """
+                                    '''
                                 }
                             }
                         } catch(Exception e) {
@@ -467,15 +468,17 @@ pipeline {
                         } else {
                             memoryl = " --memory=1g --memory-swap=1g"
                         }
-                        sshagent(['keywi-server']) {
-                            sh """
-                                ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${PROD_SERVER} "
-                                    docker pull ${DOCKER_USER}/${IMAGE_NAME}-${SERVICE}:${DOCKER_TAG}
-                                    docker stop ${SERVICE} || true
-                                    docker rm ${SERVICE} || true
-                                    docker run${memoryl} -d --network host --name ${SERVICE} ${DOCKER_USER}/${IMAGE_NAME}-${SERVICE}:${DOCKER_TAG}
-                                "
-                            """
+                        withCredentials([usernamePassword(credentialsId: 'docker_credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                            sshagent(['keywi-server']) {
+                                sh """#!/bin/bash -l
+                                    ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${PROD_SERVER} "
+                                        docker pull ${DOCKER_USER}/${IMAGE_NAME}-${SERVICE}:${DOCKER_TAG}
+                                        docker stop ${SERVICE} || true
+                                        docker rm ${SERVICE} || true
+                                        docker run${memoryl} -d --network host --name ${SERVICE} ${DOCKER_USER}/${IMAGE_NAME}-${SERVICE}:${DOCKER_TAG}
+                                    "
+                                """
+                            }
                         }
                     }
                     echo "Success Production deployment."
