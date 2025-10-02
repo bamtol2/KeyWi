@@ -1,6 +1,7 @@
 import React, { createContext, useRef, useEffect, useState } from 'react'
 import { Client } from '@stomp/stompjs'
 import SockJS from 'sockjs-client'
+import { BASE_URL } from '@/config'
 
 type WebSocketContextType = {
   client: Client | null
@@ -21,7 +22,8 @@ export const WebSocketProvider = ({
   const clientRef = useRef<Client | null>(null)
 
   useEffect(() => {
-    const socket = new SockJS('https://j12e202.p.ssafy.io/chat/ws-endpoint')
+    const wsUrl = `${BASE_URL}/chat/ws-endpoint`
+    const socket = new SockJS(wsUrl)
     const client = new Client({
       webSocketFactory: () => socket,
       debug: (str) => console.log('[STOMP]', str),
