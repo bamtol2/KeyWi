@@ -41,6 +41,32 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final StompHandler stompHandler;
 
     /**
+     * WebSocket 엔드포인트를 정적 리소스 핸들러에서 제외하기 위한 설정
+     */
+    @Bean
+    public org.springframework.web.servlet.config.annotation.WebMvcConfigurer webMvcConfigurer() {
+        return new org.springframework.web.servlet.config.annotation.WebMvcConfigurer() {
+            @Override
+            public void addResourceHandlers(org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry registry) {
+                // 기본 정적 리소스 핸들러 설정을 유지하되, ws-endpoint는 제외
+                registry.addResourceHandler("/**")
+                        .addResourceLocations("classpath:/static/", "classpath:/public/")
+                        .resourceChain(true)
+                        .addResolver(new org.springframework.web.servlet.resource.PathResourceResolver() {
+                            @Override
+                            protected org.springframework.core.io.Resource getResource(String resourcePath, org.springframework.core.io.Resource location) throws java.io.IOException {
+                                // chat/ws-endpoint 경로는 WebSocket에서 처리하도록 제외
+                                if (resourcePath != null && (resourcePath.startsWith("ws-endpoint") || resourcePath.startsWith("chat/ws-endpoint"))) {
+                                    return null;
+                                }
+                                return super.getResource(resourcePath, location);
+                            }
+                        });
+            }
+        };
+    }
+
+    /**
      * STOMP 메시지 브로커 설정
      * 메시지 라우팅 및 큐 관리를 위한 설정
      */
@@ -90,6 +116,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .setSessionCookieNeeded(true);               // 세션 쿠키 사용 (세션 유지에 도움)
     }
 
+
+    
     /**
      * 사용자 식별을 위한 커스텀 핸드셰이크 핸들러
      */
