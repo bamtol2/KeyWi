@@ -31,7 +31,7 @@ pipeline {
         SERVER_USER = 'keywi'
         PROD_SERVER = 'keywi.poloceleste.site'
         GITHUB_BASE_URL = 'https://github.com/team2room/KeyWi'
-        DISCORD_WEBHOOK_URL = credentials('discord_webhooks')
+        DISCORD_WEBHOOK_URL = credentials('keywi_discord_webhooks')
         SERVER_WORK_DIR = 'FE/keywi'
     }
     stages {
@@ -108,20 +108,22 @@ pipeline {
                                 GIT_COMMIT_SHORT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
                                 DOCKER_TAG = "${env.BUILD_NUMBER}-${GIT_COMMIT_SHORT}"
                                 
-                                // MSA 서비스 경로 설정
-                                SERVICE_PATH = BRANCH_NAME.contains('feature/BE/') ? BRANCH_NAME.replace("feature/BE/", "") : ""
-                                
-                                // 서비스 목록 설정
-                                if (BRANCH_NAME == "master") {
-                                    SERVICES = "config,eureka,gateway,auth,product,feed,mypage,board,chat,search"
-                                } else if (BRANCH_NAME == "feature/BE/gateway") {
-                                    SERVICES = "eureka,gateway"
-                                } else {
-                                    SERVICES = SERVICE_PATH ? "${SERVICE_PATH}" : "FE only - No BE services to build"
+                                // 마스터 브랜치가 아닐 때 갱신할 서비스
+                                if (BRANCH_NAME != "master") {
+                                    // MSA 서비스 경로 설정
+                                    SERVICE_PATH = BRANCH_NAME.contains('feature/BE/') ? BRANCH_NAME.replace("feature/BE/", "") : ""
+                                    
+                                    // 서비스 목록 설정
+                                    if (BRANCH_NAME == "feature/BE/gateway") {
+                                        SERVICES = "eureka,gateway"
+                                    } else {
+                                        SERVICES = SERVICE_PATH ? "${SERVICE_PATH}" : "FE only - No BE services to build"
+                                    }
+                                    
+                                    echo "services to build: ${SERVICES}"
                                 }
                             
                                 echo "branch: ${BRANCH_NAME}"
-                                echo "services to build: ${SERVICES}"
                                 echo "docker tag: ${DOCKER_TAG}"
                             }
                         } catch (Exception e) {
@@ -140,20 +142,22 @@ pipeline {
                                 GIT_COMMIT_SHORT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
                                 DOCKER_TAG = "${env.BUILD_NUMBER}-${GIT_COMMIT_SHORT}"
                                 
-                                // MSA 서비스 경로 설정
-                                SERVICE_PATH = BRANCH_NAME.contains('feature/BE/') ? BRANCH_NAME.replace("feature/BE/", "") : ""
-                                
-                                // 서비스 목록 설정
-                                if (BRANCH_NAME == "master") {
-                                    SERVICES = "config,eureka,gateway,auth,product,feed,mypage,board,chat,search"
-                                } else if (BRANCH_NAME == "feature/BE/gateway") {
-                                    SERVICES = "eureka,gateway"
-                                } else {
-                                    SERVICES = SERVICE_PATH ? "${SERVICE_PATH}" : "FE only - No BE services to build"
+                                // 마스터 브랜치가 아닐 때 갱신할 서비스
+                                if (BRANCH_NAME != "master") {
+                                    // MSA 서비스 경로 설정
+                                    SERVICE_PATH = BRANCH_NAME.contains('feature/BE/') ? BRANCH_NAME.replace("feature/BE/", "") : ""
+                                    
+                                    // 서비스 목록 설정
+                                    if (BRANCH_NAME == "feature/BE/gateway") {
+                                        SERVICES = "eureka,gateway"
+                                    } else {
+                                        SERVICES = SERVICE_PATH ? "${SERVICE_PATH}" : "FE only - No BE services to build"
+                                    }
+                                    
+                                    echo "services to build: ${SERVICES}"
                                 }
                                 
                                 echo "branch: ${BRANCH_NAME}"
-                                echo "services to build: ${SERVICES}"
                                 echo "docker tag: ${DOCKER_TAG}"
                             }
                         } catch (Exception e) {
@@ -165,6 +169,93 @@ pipeline {
                     AUTHOR = sh(script: "git log -1 --pretty=format:%an", returnStdout: true).trim()
                     COMMIT_MSG = sh(script: 'git log -1 --pretty=%B | tr "\\n" " "', returnStdout: true).trim()
                     COMMIT_HASH = sh(script: "git log -1 --pretty=format:%H", returnStdout: true).trim()
+                }
+            }
+        }
+        // master일 경우 바뀐 서버 탐지
+        stage('Detect Changed Services') {
+            when {
+                expression {
+                    return BRANCH_NAME == "master"
+                }
+            }
+            steps {
+                script {
+                    STAGE_NAME = "Detect Changed Services"
+                    
+                    try {
+                        // 변경된 파일 목록 가져오기
+                        def changedFiles = sh(
+                            script: "git diff --name-only HEAD~1 HEAD", 
+                            returnStdout: true
+                        ).trim()
+                        
+                        echo "Changed files:\n${changedFiles}"
+                        
+                        // Jenkinsfile이 변경되었는지 확인
+                        def jenkinsfileChanged = changedFiles.split('\n').any { 
+                            it.trim() == 'Jenkinsfile' 
+                        }
+                        
+                        if (jenkinsfileChanged) {
+                            echo "Jenkinsfile changed - building all BE services"
+                            SERVICES = "config,eureka,gateway,auth,product,feed,mypage,board,chat,search"
+                        } else {
+                            // BE 서비스 변경 감지
+                            def changedServices = [] as Set
+                            
+                            changedFiles.split('\n').each { file ->
+                                file = file.trim()
+                                
+                                // BE/ 로 시작하는 파일만 처리
+                                if (file.startsWith('BE/')) {
+                                    def parts = file.split('/')
+                                    if (parts.size() >= 2) {
+                                        def serviceName = parts[1]
+                                        // 유효한 서비스명인 경우만 추가
+                                        def validServices = ['config', 'eureka', 'gateway', 'auth', 
+                                                            'product', 'feed', 'mypage', 'board', 
+                                                            'chat', 'search']
+                                        if (validServices.contains(serviceName)) {
+                                            changedServices.add(serviceName)
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if (changedServices.isEmpty()) {
+                                echo "No BE services changed"
+                                SERVICES = ""
+                            } else {
+                                // config와 eureka가 있으면 최우선 배치
+                                def orderedServices = []
+                                if (changedServices.contains('config')) {
+                                    orderedServices.add('config')
+                                }
+                                if (changedServices.contains('eureka')) {
+                                    orderedServices.add('eureka')
+                                }
+                                if (changedServices.contains('gateway')) {
+                                    orderedServices.add('gateway')
+                                }
+                                
+                                // 나머지 서비스 추가
+                                changedServices.each { service ->
+                                    if (!orderedServices.contains(service)) {
+                                        orderedServices.add(service)
+                                    }
+                                }
+                                
+                                SERVICES = orderedServices.join(',')
+                                echo "Changed BE services: ${SERVICES}"
+                            }
+                        }
+                    } catch (Exception e) {
+                        echo "Error detecting changed services: ${e.message}"
+                        // 에러 발생 시 전부 갱신
+                        SERVICES = "config,eureka,gateway,auth,product,feed,mypage,board,chat,search"
+                        echo "Fallback - building all services: ${SERVICES}"
+                    }
                 }
             }
         }
@@ -191,6 +282,17 @@ pipeline {
                                 sh """
                                     mkdir -p BE/${SERVICE}/src/main/resources
                                     cp \$CONFIG_FILE BE/${SERVICE}/src/main/resources/application.yml
+                                """
+                            }
+                        }
+                        if (SERVICE == "chat") {
+                            echo "Injecting config for ${SERVICE}..."
+                            withCredentials([
+                                file(credentialsId: 'keywi_firebase_json', variable: 'JSON_FILE')
+                            ]) {
+                                sh """
+                                    mkdir -p BE/${SERVICE}/src/main/resources
+                                    cp \$JSON_FILE BE/${SERVICE}/src/main/resources/firebase-service-account.json
                                 """
                             }
                         }
@@ -551,6 +653,11 @@ pipeline {
                 def commitUrl = "${GITHUB_BASE_URL}/commit/${commitHash}"
                 def buildUrl = "${env.BUILD_URL}"
                 
+                def timestamp = sh(
+                    script: "TZ='Asia/Seoul' date +\"%Y-%m-%dT%H:%M:%S\"",
+                    returnStdout: true
+                ).trim()
+                
                 def discordMessage = [
                     embeds: [[
                         title: "${emoji} ${env.JOB_NAME} - #${env.BUILD_NUMBER}",
@@ -564,7 +671,7 @@ pipeline {
                                 ((ERROR_MSG != "false") ? "\n**에러:**\n`${ERROR_MSG}`\n" : "") +
                                 (currentBuild.currentResult == 'ABORTED' ? "**사용자 취소**\n" : ""),
                         color: color,
-                        timestamp: new Date().format("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"),
+                        timestamp: timestamp,
                         footer: [
                             text: "KeyWi CI/CD",
                             icon_url: "https://www.jenkins.io/images/logos/jenkins/jenkins.png"
