@@ -132,12 +132,13 @@ export default function ChatRoomSendBox({ dealDisabled = false }: Props) {
           placeholder="메시지 보내기"
           className="bg-transparent outline-none text-[#303337]"
         />
-        <Send
-          height="1.6rem"
-          width="1.5rem"
-          color={colors.darkGray}
+        <button
+          type="button"
           onClick={sendMessage}
-        />
+          className="flex items-center justify-center"
+        >
+          <Send height="1.6rem" width="1.5rem" color={colors.darkGray} />
+        </button>
       </Container>
 
       <TwoBtnModal
