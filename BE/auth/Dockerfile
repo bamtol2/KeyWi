@@ -3,7 +3,7 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-ENV JAVA_OPTS="-Xmx1g -Xms768m"
+ENV JAVA_OPTS="-Xmx1g -Xms512m -XX:MaxMetaspaceSize=256m -XX:+UseG1GC"
 
 EXPOSE 8100
 USER 1001

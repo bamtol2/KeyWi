@@ -9,7 +9,7 @@ RUN mkdir -p /app/.config/jgit && \
 
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-ENV JAVA_OPTS="-Xmx512m -Xms512m -Duser.home=/app"
+ENV JAVA_OPTS="-Xmx512m -Xms256m -XX:MaxMetaspaceSize=128m -XX:+UseG1GC -Duser.home=/app"
 
 EXPOSE 8888
 
