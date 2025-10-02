@@ -74,12 +74,27 @@ public class ElasticsearchIndexInitializer {
     private Map<String, Property> getProductsMapping() {
         return Map.of(
                 "productId", Property.of(p -> p.keyword(k -> k)),
-                "productName", Property.of(p -> p.text(t -> t.analyzer("jaso_index_analyzer").searchAnalyzer("jaso_search_analyzer"))),
+                "productName", Property.of(p -> p.text(t -> t
+                        .analyzer("jaso_index_analyzer")
+                        .searchAnalyzer("jaso_search_analyzer")
+                        .fields(Map.of(
+                                "jaso", Property.of(f -> f.text(ft -> ft
+                                        .analyzer("jaso_index_analyzer")
+                                        .searchAnalyzer("jaso_search_analyzer"))),
+                                "standard_en", Property.of(f -> f.text(ft -> ft
+                                        .analyzer("standard_en_analyzer"))),
+                                "ngram_en", Property.of(f -> f.text(ft -> ft
+                                        .analyzer("ngram_en_analyzer")))
+                        )))),
                 "categoryId", Property.of(p -> p.keyword(k -> k)),
-                "categoryName", Property.of(p -> p.text(t -> t.analyzer("jaso_index_analyzer").searchAnalyzer("jaso_search_analyzer"))),
+                "categoryName", Property.of(p -> p.text(t -> t
+                        .analyzer("jaso_index_analyzer")
+                        .searchAnalyzer("jaso_search_analyzer"))),
                 "price", Property.of(p -> p.integer(i -> i)),
                 "imageUrl", Property.of(p -> p.keyword(k -> k)),
-                "manufacturer", Property.of(p -> p.text(t -> t.analyzer("jaso_index_analyzer").searchAnalyzer("jaso_search_analyzer")))
+                "manufacturer", Property.of(p -> p.text(t -> t
+                        .analyzer("jaso_index_analyzer")
+                        .searchAnalyzer("jaso_search_analyzer")))
         );
     }
 
@@ -114,10 +129,24 @@ public class ElasticsearchIndexInitializer {
 
     private Map<String, Property> getUsersMapping() {
         return Map.of(
-                "userId", Property.of(p -> p.keyword(k -> k)),
-                "userName", Property.of(p -> p.text(t -> t.analyzer("jaso_index_analyzer").searchAnalyzer("jaso_search_analyzer"))),
-                "userNickname", Property.of(p -> p.text(t -> t.analyzer("jaso_index_analyzer").searchAnalyzer("jaso_search_analyzer"))),
-                "brix", Property.of(p -> p.integer(i -> i))
+                "userId", Property.of(p -> p.integer(i -> i)),
+                "nickname", Property.of(p -> p.text(t -> t
+                        .analyzer("jaso_index_analyzer")
+                        .searchAnalyzer("jaso_search_analyzer")
+                        .fields(Map.of(
+                                "jaso", Property.of(f -> f.text(ft -> ft
+                                        .analyzer("jaso_index_analyzer")
+                                        .searchAnalyzer("jaso_search_analyzer"))),
+                                "standard_en", Property.of(f -> f.text(ft -> ft
+                                        .analyzer("standard_en_analyzer"))),
+                                "ngram_en", Property.of(f -> f.text(ft -> ft
+                                        .analyzer("ngram_en_analyzer")))
+                        )))),
+                "profileContent", Property.of(p -> p.text(t -> t
+                        .analyzer("jaso_index_analyzer")
+                        .searchAnalyzer("jaso_search_analyzer"))),
+                "brix", Property.of(p -> p.integer(i -> i)),
+                "profileImageUrl", Property.of(p -> p.keyword(k -> k))
         );
     }
 }
