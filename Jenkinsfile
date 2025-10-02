@@ -654,7 +654,7 @@ pipeline {
                 def buildUrl = "${env.BUILD_URL}"
                 
                 def timestamp = sh(
-                    script: "TZ='Asia/Seoul' date +\"%Y-%m-%dT%H:%M:%S\"",
+                    script: "TZ='Asia/Seoul' date +\"%Y-%m-%dT%H:%M:%S+09:00\"",
                     returnStdout: true
                 ).trim()
                 
