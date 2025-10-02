@@ -118,8 +118,8 @@ public class ElasticsearchIndexInitializer {
     private Map<String, Property> getSearchSuggestMapping() {
         return Map.of(
                 "name", Property.of(p -> p.text(t -> t
-                        .analyzer("suggest_index_analyzer")
-                        .searchAnalyzer("suggest_search_analyzer")
+                        .analyzer("jaso_index_analyzer")
+                        .searchAnalyzer("jaso_search_analyzer")
                         .fields("keyword", Property.of(f -> f.keyword(k -> k))))),
                 "searchCount", Property.of(p -> p.integer(i -> i)),
                 "isAd", Property.of(p -> p.boolean_(b -> b)),
