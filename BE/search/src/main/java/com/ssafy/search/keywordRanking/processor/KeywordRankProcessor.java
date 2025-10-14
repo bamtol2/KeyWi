@@ -23,7 +23,7 @@ public class KeywordRankProcessor implements ItemProcessor<KeywordDto, KeywordRa
     @Override
     public KeywordRankDto process(KeywordDto current) {
         LocalDateTime timeBlock = getTargetTimeBlock(); // ✅ 매번 새로 구함
-        Map<String, Integer> previousRankMap = loadPreviousRankMap(timeBlock.minusMinutes(2));
+        Map<String, Integer> previousRankMap = loadPreviousRankMap(timeBlock.minusHours(1));
 
         String keyword = current.getKeyword();
         int currentRank = current.getRanking();
@@ -42,8 +42,8 @@ public class KeywordRankProcessor implements ItemProcessor<KeywordDto, KeywordRa
     }
 
     private LocalDateTime getTargetTimeBlock() {
-        LocalDateTime now = LocalDateTime.now().minusMinutes(2);
-        return now.withSecond(0).withNano(0).withMinute((now.getMinute() / 2) * 2);
+        LocalDateTime now = LocalDateTime.now().minusHours(1);
+        return now.withSecond(0).withNano(0).withMinute(0);
     }
 
     private Map<String, Integer> loadPreviousRankMap(LocalDateTime prevBlock) {

@@ -31,7 +31,7 @@ public class KeywordRankReader implements ItemReader<KeywordDto> {
         if (delegate == null) {
             LocalDateTime timeBlock = getTargetTimeBlock();
             String redisKey = getTimeBlockKey(timeBlock);
-            log.info("🔍 읽는 Redis 키: {}", redisKey);
+            log.info("읽는 Redis 키 (1시간 단위): {}", redisKey);
 
             Set<ZSetOperations.TypedTuple<String>> zset = zSetOperations.reverseRangeWithScores(redisKey, 0, 9);
             List<KeywordDto> keywords = new ArrayList<>();
@@ -46,21 +46,20 @@ public class KeywordRankReader implements ItemReader<KeywordDto> {
                 }
             }
 
-            log.info("✅ 키워드 개수: {}", keywords.size());
+            log.info("키워드 개수 (1시간 단위): {}", keywords.size());
             delegate = new ListItemReader<>(keywords);
         }
 
-        return delegate.read(); // ✅ 이게 핵심: 내부 Reader에서 하나씩 꺼냄
+        return delegate.read(); // 이게 핵심: 내부 Reader에서 하나씩 꺼냄
     }
 
     private LocalDateTime getTargetTimeBlock() {
-        LocalDateTime now = LocalDateTime.now().minusMinutes(2);
-        return now.withSecond(0).withNano(0).withMinute((now.getMinute() / 2) * 2);
+        LocalDateTime now = LocalDateTime.now().minusHours(1);
+        return now.withSecond(0).withNano(0).withMinute(0);
     }
 
     private String getTimeBlockKey(LocalDateTime time) {
-        int minuteBlock = (time.getMinute() / 2) * 2;
         String date = time.format(DateTimeFormatter.ofPattern("yyyyMMdd_HH"));
-        return "popular_keywords:" + date + ":" + String.format("%02d", minuteBlock);
+        return "popular_keywords:" + date + ":00";
     }
 }

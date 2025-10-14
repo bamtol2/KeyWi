@@ -36,26 +36,25 @@ public class KeywordRankWriter implements ItemWriter<KeywordRankDto> {
                     "NONE"
             );
             keywordRankMapper.insertKeywordRanks(Collections.singletonList(empty));
-            log.info("🕳️ 검색어 없음 - 빈 블록 저장 완료: {}", timeBlock);
+            log.info("검색어 없음 - 빈 블록 저장 완료 (1시간 단위): {}", timeBlock);
         } else {
             keywordRankMapper.insertKeywordRanks((List<KeywordRankDto>) items);
-            log.info("✅ 집계 완료 - 키워드 {}개 저장", items.size());
+            log.info("집계 완료 - 키워드 {}개 저장 (1시간 단위)", items.size());
         }
 
         // ✅ Redis 키 삭제
         String redisKey = getTimeBlockKey(timeBlock);
         redisTemplate.delete(redisKey);
-        log.info("🗑️ 삭제된 Redis 키: {}", redisKey);
+        log.info("삭제된 Redis 키 (1시간 단위): {}", redisKey);
     }
 
     private LocalDateTime getTargetTimeBlock() {
-        LocalDateTime now = LocalDateTime.now().minusMinutes(2);
-        return now.withSecond(0).withNano(0).withMinute((now.getMinute() / 2) * 2);
+        LocalDateTime now = LocalDateTime.now().minusHours(1);
+        return now.withSecond(0).withNano(0).withMinute(0);
     }
 
     private String getTimeBlockKey(LocalDateTime time) {
-        int minuteBlock = (time.getMinute() / 2) * 2;
         String date = time.format(DateTimeFormatter.ofPattern("yyyyMMdd_HH"));
-        return "popular_keywords:" + date + ":" + String.format("%02d", minuteBlock);
+        return "popular_keywords:" + date + ":00";
     }
 }

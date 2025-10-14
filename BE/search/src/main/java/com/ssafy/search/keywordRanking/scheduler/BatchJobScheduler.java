@@ -15,7 +15,7 @@ public class BatchJobScheduler {
     private final JobLauncher jobLauncher;
     private final Job keywordRankingJob;
 
-    @Scheduled(cron = "0 */2 * * * *") // 매 2분마다 실행
+    @Scheduled(cron = "0 0 */1 * * *") // 매 1시간마다 실행
     public void runKeywordRankingJob() {
         try {
             JobParameters jobParameters = new JobParametersBuilder()
