@@ -43,9 +43,17 @@ public class ElasticsearchIndexInitializer {
                 .value();
 
         if (exists) {
-            // 인덱스가 존재하면 삭제하고 다시 생성 (개발환경에서만)
-            log.info("기존 인덱스 '{}' 삭제 중...", indexName);
-            elasticsearchClient.indices().delete(d -> d.index(indexName));
+            try {
+                // 기존 매핑 검증 시도
+                validateExistingMapping(indexName, mappings);
+                log.info("인덱스 '{}' 기존 매핑 호환 - 보존", indexName);
+                return;
+            } catch (Exception e) {
+                // 매핑 충돌 발생 시 재생성
+                log.warn("인덱스 '{}' 매핑 충돌 감지 - 재생성 필요: {}", indexName, e.getMessage());
+                elasticsearchClient.indices().delete(d -> d.index(indexName));
+                log.info("기존 인덱스 '{}' 삭제 완료", indexName);
+            }
         }
         
         // elasticsearch-settings.json 파일 읽기
@@ -70,6 +78,30 @@ public class ElasticsearchIndexInitializer {
         } catch (Exception e) {
             log.error("elasticsearch-settings.json 로드 실패", e);
             return "{}"; // 기본 설정
+        }
+    }
+
+    private void validateExistingMapping(String indexName, Map<String, Property> expectedMappings) throws IOException {
+        try {
+            // 기존 매핑 조회
+            var response = elasticsearchClient.indices().getMapping(g -> g.index(indexName));
+            var existingMapping = response.get(indexName);
+            
+            if (existingMapping == null) {
+                throw new RuntimeException("매핑 정보를 가져올 수 없습니다");
+            }
+            
+            // 간단한 호환성 검사 (필요한 필드가 있는지만 확인)
+            var existingProperties = existingMapping.mappings().properties();
+            for (String fieldName : expectedMappings.keySet()) {
+                if (!existingProperties.containsKey(fieldName)) {
+                    throw new RuntimeException("필수 필드 누락: " + fieldName);
+                }
+            }
+            
+            log.debug("인덱스 '{}' 매핑 검증 통과", indexName);
+        } catch (Exception e) {
+            throw new IOException("매핑 검증 실패: " + e.getMessage(), e);
         }
     }
 
