@@ -110,7 +110,7 @@ pipeline {
                                 DOCKER_TAG = "${env.BUILD_NUMBER}-${GIT_COMMIT_SHORT}"
                                 
                                 // 마스터 브랜치가 아닐 때 갱신할 서비스
-                                if (BRANCH_NAME != "master") { 
+                                if (BRANCH_NAME != "master") {
                                     // MSA 서비스 경로 설정
                                     SERVICE_PATH = BRANCH_NAME.contains('feature/BE/') ? BRANCH_NAME.replace("feature/BE/", "") : ""
                                     
@@ -419,12 +419,27 @@ pipeline {
                             def jarFile = sh(script: "ls BE/${SERVICE}/target/*.jar", returnStdout: true).trim()
                             
                             try {
+                                def dockerImage = "${DOCKER_USER}/${IMAGE_NAME}-${SERVICE}:${DOCKER_TAG}"
                                 // docker.build("${DOCKER_USER}/${IMAGE_NAME}-${SERVICE}:${DOCKER_TAG}-test", 
                                 //     "--no-cache --build-arg JAR_FILE=${jarFile} -f BE/${SERVICE}/Dockerfile .")
                                 
-                                docker.build("${DOCKER_USER}/${IMAGE_NAME}-${SERVICE}:${DOCKER_TAG}", 
-                                    "--no-cache --build-arg JAR_FILE=${jarFile} -f BE/${SERVICE}/Dockerfile .")
-                                sh "docker tag ${DOCKER_USER}/${IMAGE_NAME}-${SERVICE}:${DOCKER_TAG} ${DOCKER_USER}/${IMAGE_NAME}-${SERVICE}:latest"
+                                //docker.build("${DOCKER_USER}/${IMAGE_NAME}-${SERVICE}:${DOCKER_TAG}", 
+                                //    "--no-cache --build-arg JAR_FILE=${jarFile} -f BE/${SERVICE}/Dockerfile .")
+                                
+                                sh """
+                                    docker buildx build \
+                                        --platform linux/arm64 \
+                                        --no-cache \
+                                        --build-arg JAR_FILE=${jarFile} \
+                                        -f BE/${SERVICE}/Dockerfile \
+                                        -t ${dockerImage} \
+                                        --load \
+                                        .
+                                """
+                                
+                                // --platform linux/amd64
+                                
+                                sh "docker tag ${dockerImage} ${DOCKER_USER}/${IMAGE_NAME}-${SERVICE}:latest"
                                 // sh "docker save ${DOCKER_USER}/${IMAGE_NAME}-${SERVICE}:${DOCKER_TAG}-test | gzip > ${SERVICE}-image.tar.gz"
                             } catch(Exception e) {
                                 ERROR_MSG = e.getMessage()
