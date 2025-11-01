@@ -110,7 +110,7 @@ pipeline {
                                 DOCKER_TAG = "${env.BUILD_NUMBER}-${GIT_COMMIT_SHORT}"
                                 
                                 // 마스터 브랜치가 아닐 때 갱신할 서비스
-                                if (BRANCH_NAME != "master") {
+                                if (BRANCH_NAME != "master") { 
                                     // MSA 서비스 경로 설정
                                     SERVICE_PATH = BRANCH_NAME.contains('feature/BE/') ? BRANCH_NAME.replace("feature/BE/", "") : ""
                                     
