@@ -1,4 +1,4 @@
-FROM azul/zulu-openjdk:17.0.14-17.56
+FROM azul/zulu-openjdk:17-latest
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*

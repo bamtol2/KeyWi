@@ -1,4 +1,4 @@
-FROM azul/zulu-openjdk:17.0.14-17.56
+FROM azul/zulu-openjdk:17-latest
 
 ENV HOME=/app
 WORKDIR /app
