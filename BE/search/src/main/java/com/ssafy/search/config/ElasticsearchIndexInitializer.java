@@ -43,17 +43,19 @@ public class ElasticsearchIndexInitializer {
                 .value();
 
         if (exists) {
-            try {
-                // 기존 매핑 검증 시도
-                validateExistingMapping(indexName, mappings);
-                log.info("인덱스 '{}' 기존 매핑 호환 - 보존", indexName);
-                return;
-            } catch (Exception e) {
-                // 매핑 충돌 발생 시 재생성
-                log.warn("인덱스 '{}' 매핑 충돌 감지 - 재생성 필요: {}", indexName, e.getMessage());
-                elasticsearchClient.indices().delete(d -> d.index(indexName));
-                log.info("기존 인덱스 '{}' 삭제 완료", indexName);
-            }
+            // try {
+            //     // 기존 매핑 검증 시도
+            //     validateExistingMapping(indexName, mappings);
+            //     log.info("인덱스 '{}' 기존 매핑 호환 - 보존", indexName);
+            //     return;
+            // } catch (Exception e) {
+            //     // 매핑 충돌 발생 시 재생성
+            //     log.warn("인덱스 '{}' 매핑 충돌 감지 - 재생성 필요: {}", indexName, e.getMessage());
+            //     elasticsearchClient.indices().delete(d -> d.index(indexName));
+            //     log.info("기존 인덱스 '{}' 삭제 완료", indexName);
+            // }
+            elasticsearchClient.indices().delete(d -> d.index(indexName));
+            log.info("기존 인덱스 '{}' 삭제 완료", indexName);
         }
         
         // elasticsearch-settings.json 파일 읽기
